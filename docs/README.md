@@ -15,6 +15,7 @@ The root [README](../README.md) is the portfolio and project entry point. These 
 - [Development](development.md) — local setup, migrations, seed data, dependencies, common commands, and contributor workflow.
 - [Testing](testing.md) — test layers, quality gates, browser suites, accessibility, contract checks, and when to run each level of verification.
 - [Operations](operations.md) — production images, runtime configuration, health and readiness, observability, source packaging, the portfolio sandbox, and release boundaries.
+- [Portfolio sandbox deployment](portfolio-sandbox-deployment.md) — reviewed image publication, EC2 host service, protected Coolify routing, hosted certification, rollback, and fail-stop recovery.
 
 ## Recommendations and evaluation
 

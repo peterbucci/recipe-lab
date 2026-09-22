@@ -13,22 +13,30 @@ on:
       - .gitattributes
       - .github/actions/**
       - .github/workflows/ci.yml
+      - .github/workflows/publish-portfolio-sandbox.yml
       - .github/workflows/release-rehearsal.yml
       - .github/workflows/security.yml
       - .dockerignore
       - .env.example
       - backend/**
+      - deploy/systemd/**
+      - docs/portfolio-sandbox-deployment.md
       - frontend/**
       - ml/**
       - pyproject.toml
       - uv.lock
       - scripts/package_source.py
+      - scripts/rehearse_portfolio_sandbox.py
       - scripts/verify_repository_policy.py
       - scripts/rehearse_release.py
       - scripts/run_release_rehearsal.sh
+      - scripts/run_portfolio_sandbox.py
       - scripts/tests/test_package_source.py
+      - scripts/tests/test_portfolio_deployment_artifacts.py
+      - scripts/tests/test_rehearse_portfolio_sandbox.py
       - scripts/tests/test_verify_repository_policy.py
       - scripts/tests/test_rehearse_release.py
+      - scripts/tests/test_run_portfolio_sandbox.py
       - scripts/tests/test_verify_production_images.py
       - scripts/verify_production_images.py
   push:
@@ -38,22 +46,30 @@ on:
       - .gitattributes
       - .github/actions/**
       - .github/workflows/ci.yml
+      - .github/workflows/publish-portfolio-sandbox.yml
       - .github/workflows/release-rehearsal.yml
       - .github/workflows/security.yml
       - .dockerignore
       - .env.example
       - backend/**
+      - deploy/systemd/**
+      - docs/portfolio-sandbox-deployment.md
       - frontend/**
       - ml/**
       - pyproject.toml
       - uv.lock
       - scripts/package_source.py
+      - scripts/rehearse_portfolio_sandbox.py
       - scripts/verify_repository_policy.py
       - scripts/rehearse_release.py
       - scripts/run_release_rehearsal.sh
+      - scripts/run_portfolio_sandbox.py
       - scripts/tests/test_package_source.py
+      - scripts/tests/test_portfolio_deployment_artifacts.py
+      - scripts/tests/test_rehearse_portfolio_sandbox.py
       - scripts/tests/test_verify_repository_policy.py
       - scripts/tests/test_rehearse_release.py
+      - scripts/tests/test_run_portfolio_sandbox.py
       - scripts/tests/test_verify_production_images.py
       - scripts/verify_production_images.py
 
@@ -168,6 +184,7 @@ jobs:
           python -m unittest \
             scripts.tests.test_rehearse_release \
             scripts.tests.test_verify_production_images
+          python -m pytest scripts/tests/test_portfolio_deployment_artifacts.py
           cd backend
           python -m pytest \
             tests/test_account_deletion_recovery.py \

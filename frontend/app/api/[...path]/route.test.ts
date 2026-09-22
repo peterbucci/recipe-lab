@@ -7,6 +7,7 @@ import {
   NETWORK_HEADER,
   NETWORK_SIGNATURE_HEADER,
   NETWORK_TIMESTAMP_HEADER,
+  PROXY_PROOF_HEADER,
 } from "../../../server/trusted-network-signal.mjs";
 
 import * as routeModule from "./route";
@@ -60,6 +61,68 @@ describe("same-origin API boundary", () => {
       "dynamic",
       "runtime",
     ]);
+  });
+
+  it.each([
+    ["health", "http://recipe.test/api/health", ["health"]],
+    [
+      "readiness with a query",
+      "http://recipe.test/api/readiness?public_probe=true",
+      ["readiness"],
+    ],
+    ["health with a trailing slash", "http://recipe.test/api/health/", ["health"]],
+  ])("keeps the internal %s path private for every HTTP method", async (_label, url, path) => {
+    vi.stubEnv("RECIPE_API_URL", "not-a-valid-backend-origin");
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const handlers = [
+      ["GET", routeModule.GET],
+      ["HEAD", routeModule.HEAD],
+      ["POST", routeModule.POST],
+      ["PUT", routeModule.PUT],
+      ["PATCH", routeModule.PATCH],
+      ["DELETE", routeModule.DELETE],
+      ["OPTIONS", routeModule.OPTIONS],
+    ] as const;
+
+    const responses = await Promise.all(
+      handlers.map(([method, handler]) =>
+        handler(new NextRequest(url, { method }), {
+          params: Promise.resolve({ path }),
+        }),
+      ),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    for (const response of responses) {
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("pragma")).toBe("no-cache");
+      expect(response.headers.get("content-length")).toBe("0");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      await expect(response.text()).resolves.toBe("");
+    }
+  });
+
+  it("rejects a concurrent public readiness burst without any backend fanout", async () => {
+    vi.stubEnv("RECIPE_API_URL", "https://api.example.test");
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const responses = await Promise.all(
+      Array.from({ length: 64 }, (_, index) =>
+        GET(
+          new NextRequest(
+            `https://recipe.test/api/readiness?probe=${index}`,
+          ),
+          { params: Promise.resolve({ path: ["readiness"] }) },
+        ),
+      ),
+    );
+
+    expect(responses).toHaveLength(64);
+    expect(responses.every((response) => response.status === 404)).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("forwards path, query, cookies, and manual redirects to the private backend", async () => {
@@ -146,6 +209,7 @@ describe("same-origin API boundary", () => {
       expect(forwarded.headers.get("forwarded")).toBeNull();
       expect(forwarded.headers.get("x-forwarded-for")).toBeNull();
       expect(forwarded.headers.get("x-real-ip")).toBeNull();
+      expect(forwarded.headers.get(PROXY_PROOF_HEADER)).toBeNull();
       expect(forwarded.headers.get(NETWORK_HEADER)).toBeNull();
       expect(forwarded.headers.get(NETWORK_TIMESTAMP_HEADER)).toBeNull();
       expect(forwarded.headers.get(NETWORK_SIGNATURE_HEADER)).toBeNull();
@@ -160,6 +224,7 @@ describe("same-origin API boundary", () => {
           Forwarded: "for=198.51.100.9",
           "X-Forwarded-For": "198.51.100.9",
           "X-Real-IP": "198.51.100.9",
+          [PROXY_PROOF_HEADER]: "a".repeat(64),
           [NETWORK_HEADER]: "198.51.100.0/24",
           [NETWORK_TIMESTAMP_HEADER]: String(Math.floor(Date.now() / 1000)),
           [NETWORK_SIGNATURE_HEADER]: "0".repeat(64),

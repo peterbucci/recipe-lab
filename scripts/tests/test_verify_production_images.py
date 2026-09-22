@@ -83,6 +83,7 @@ class ImageMetadataTests(unittest.TestCase):
             ({"command": ["npm", "run", "dev"]}, "development"),
             ({"command": ["node", "server.mjs", "--dev"]}, "development"),
             ({"environment": ["DATABASE_URL=postgresql://private"]}, "credential"),
+            ({"environment": ["TRUSTED_PROXY_PROOF_SECRET=" + "a" * 64]}, "credential"),
             ({"healthcheck": {}}, "health check"),
         )
         for options, message in cases:

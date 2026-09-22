@@ -1,0 +1,72 @@
+[Unit]
+Description=Recipe Lab disposable portfolio sandbox
+Documentation=https://github.com/peterbucci/recipe-lab/blob/main/docs/portfolio-sandbox-deployment.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=5min
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=recipe-lab-sandbox
+Group=recipe-lab-sandbox
+SupplementaryGroups=docker
+WorkingDirectory=/opt/recipe-lab/current
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/recipe-lab/sandbox.env
+ExecStart=/usr/bin/python3 -m scripts.run_portfolio_sandbox \
+  --backend-image ${RECIPE_LAB_BACKEND_IMAGE_ID} \
+  --frontend-image ${RECIPE_LAB_FRONTEND_IMAGE_ID} \
+  --origin ${RECIPE_LAB_ORIGIN} \
+  --contact-url ${RECIPE_LAB_CONTACT_URL} \
+  --listen-host ${RECIPE_LAB_LISTEN_HOST} \
+  --trusted-proxy-cidrs ${RECIPE_LAB_TRUSTED_PROXY_CIDRS} \
+  --port 3100 \
+  --lifetime-seconds 86400 \
+  --heartbeat-directory /run/recipe-lab-sandbox \
+  --state-directory /var/lib/recipe-lab-sandbox
+Restart=on-failure
+RestartSec=15s
+RestartPreventExitStatus=78
+TimeoutStopSec=5min
+KillSignal=SIGTERM
+KillMode=mixed
+LimitCORE=0
+MemoryMax=256M
+MemorySwapMax=0
+TasksMax=64
+UMask=0077
+
+StateDirectory=recipe-lab-sandbox
+StateDirectoryMode=0700
+RuntimeDirectory=recipe-lab-sandbox
+RuntimeDirectoryMode=0700
+
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+RemoveIPC=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
