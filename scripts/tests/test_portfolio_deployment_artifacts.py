@@ -83,3 +83,14 @@ def test_runbook_keeps_readiness_proof_and_public_routing_fail_closed() -> None:
     assert "Keep `recipe-lab-sandbox-proxy-proof`" in runbook
     assert "Keep `supervisor.lock`" in runbook
     assert "Do not use `docker system prune`" in runbook
+
+
+def test_runbook_maps_classic_and_containerd_runtime_image_identities() -> None:
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+
+    assert "resolve_runtime_id" in runbook
+    assert "Docker 29's containerd image store" in runbook
+    assert "docker buildx imagetools inspect --raw" in runbook
+    assert 'json.load(sys.stdin)["config"]["digest"]' in runbook
+    assert '"$manifest_config_id" = "$expected_config_id"' in runbook
+    assert 'docker image inspect --format \'{{.Id}}\' "$runtime_id"' in runbook

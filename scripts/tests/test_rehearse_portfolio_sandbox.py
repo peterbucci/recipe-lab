@@ -50,6 +50,41 @@ class RehearsalTests(unittest.TestCase):
         self.assertEqual(request.headers["Cookie"], "recipe_lab_session=old-test-cookie")
         self.assertEqual(request.full_url, rehearsal.ORIGIN + "/api/auth/session")
 
+    def test_frontend_lifecycle_probe_checks_exact_status_and_body(self) -> None:
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.status = 503
+        response.read.return_value = b"unavailable\n"
+        opener = MagicMock()
+        opener.open.return_value = response
+        with patch.object(rehearsal, "build_opener", return_value=opener):
+            visitor = rehearsal.Visitor(ssl.create_default_context())
+        visitor.verify_frontend_lifecycle_probe("/readyz")
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.full_url, rehearsal.ORIGIN + "/readyz")
+
+    def test_frontend_lifecycle_probe_rejects_other_paths(self) -> None:
+        opener = MagicMock()
+        with patch.object(rehearsal, "build_opener", return_value=opener):
+            visitor = rehearsal.Visitor(ssl.create_default_context())
+        with self.assertRaises(sandbox.SandboxOperationError):
+            visitor.verify_frontend_lifecycle_probe("/api/health")
+        opener.open.assert_not_called()
+
+    def test_frontend_lifecycle_probe_requires_exact_status_and_body(self) -> None:
+        for status, body in ((200, b"unavailable\n"), (503, b"ready\n")):
+            with self.subTest(status=status, body=body):
+                response = MagicMock()
+                response.__enter__.return_value = response
+                response.status = status
+                response.read.return_value = body
+                opener = MagicMock()
+                opener.open.return_value = response
+                with patch.object(rehearsal, "build_opener", return_value=opener):
+                    visitor = rehearsal.Visitor(ssl.create_default_context())
+                with self.assertRaises(sandbox.SandboxOperationError):
+                    visitor.verify_frontend_lifecycle_probe("/readyz")
+
     def test_database_attestation_is_read_only_and_checks_exact_owner_first(self) -> None:
         with (
             patch.object(sandbox, "_owned_container", return_value=True) as owned,
@@ -71,6 +106,75 @@ class RehearsalTests(unittest.TestCase):
             with self.assertRaises(sandbox.SandboxOperationError):
                 rehearsal._database_counts(self.generation)
         docker.assert_not_called()
+
+    def test_private_backend_probe_uses_only_owned_internal_health_routes(self) -> None:
+        with (
+            patch.object(sandbox, "_owned_container", return_value=True) as owned,
+            patch.object(sandbox, "docker") as docker,
+        ):
+            rehearsal._verify_private_backend_status(
+                self.generation, "/api/readiness", 503
+            )
+        name = f"{self.generation.prefix}-backend"
+        owned.assert_called_once_with(name, self.generation)
+        command = docker.call_args.args[0]
+        self.assertEqual(command[:3], ["exec", name, "python"])
+        self.assertEqual(command[-2:], ["/api/readiness", "503"])
+        self.assertIn("ProxyHandler({})", command[-3])
+
+    def test_private_backend_probe_refuses_unowned_or_public_paths(self) -> None:
+        with (
+            patch.object(sandbox, "_owned_container", return_value=False),
+            patch.object(sandbox, "docker") as docker,
+        ):
+            with self.assertRaises(sandbox.SandboxOperationError):
+                rehearsal._verify_private_backend_status(
+                    self.generation, "/api/readiness", 503
+                )
+        docker.assert_not_called()
+        with (
+            patch.object(sandbox, "_owned_container", return_value=True),
+            patch.object(sandbox, "docker") as docker,
+        ):
+            with self.assertRaises(sandbox.SandboxOperationError):
+                rehearsal._verify_private_backend_status(self.generation, "/api/recipes", 503)
+        docker.assert_not_called()
+
+    def test_deadline_keeps_health_routes_private(self) -> None:
+        expired = sandbox.Generation(
+            self.generation.identifier,
+            self.generation.started_at,
+            datetime.now(UTC) - timedelta(seconds=4),
+        )
+        visitor = MagicMock()
+        with (
+            patch.object(sandbox, "_owned_container", return_value=False),
+            patch.object(rehearsal, "_verify_private_backend_status") as private_probe,
+        ):
+            rehearsal._deadline(expired, visitor)
+        self.assertEqual(
+            [item.args for item in visitor.request.call_args_list],
+            [
+                ("/api/recipes",),
+                ("/api/readiness",),
+                ("/api/health",),
+            ],
+        )
+        self.assertEqual(
+            [item.kwargs for item in visitor.request.call_args_list],
+            [{"expected": 503}, {"expected": 404}, {"expected": 404}],
+        )
+        self.assertEqual(
+            [item.args for item in visitor.verify_frontend_lifecycle_probe.call_args_list],
+            [("/readyz",), ("/healthz",)],
+        )
+        self.assertEqual(
+            [item.args for item in private_probe.call_args_list],
+            [
+                (expired, "/api/readiness", 503),
+                (expired, "/api/health", 200),
+            ],
+        )
 
     def test_binding_checks_changed_id_and_deadline_then_original(self) -> None:
         with (
