@@ -93,4 +93,4 @@ def test_runbook_maps_classic_and_containerd_runtime_image_identities() -> None:
     assert "docker buildx imagetools inspect --raw" in runbook
     assert 'json.load(sys.stdin)["config"]["digest"]' in runbook
     assert '"$manifest_config_id" = "$expected_config_id"' in runbook
-    assert 'docker image inspect --format \'{{.Id}}\' "$runtime_id"' in runbook
+    assert "docker image inspect --format '{{.Id}}' \"$runtime_id\"" in runbook

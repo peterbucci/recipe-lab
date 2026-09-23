@@ -112,9 +112,7 @@ class RehearsalTests(unittest.TestCase):
             patch.object(sandbox, "_owned_container", return_value=True) as owned,
             patch.object(sandbox, "docker") as docker,
         ):
-            rehearsal._verify_private_backend_status(
-                self.generation, "/api/readiness", 503
-            )
+            rehearsal._verify_private_backend_status(self.generation, "/api/readiness", 503)
         name = f"{self.generation.prefix}-backend"
         owned.assert_called_once_with(name, self.generation)
         command = docker.call_args.args[0]
@@ -128,9 +126,7 @@ class RehearsalTests(unittest.TestCase):
             patch.object(sandbox, "docker") as docker,
         ):
             with self.assertRaises(sandbox.SandboxOperationError):
-                rehearsal._verify_private_backend_status(
-                    self.generation, "/api/readiness", 503
-                )
+                rehearsal._verify_private_backend_status(self.generation, "/api/readiness", 503)
         docker.assert_not_called()
         with (
             patch.object(sandbox, "_owned_container", return_value=True),
