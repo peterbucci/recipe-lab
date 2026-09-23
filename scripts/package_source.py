@@ -27,7 +27,7 @@ TOOL_VERSION = "1.2.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 6
+POLICY_VERSION = 7
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -59,7 +59,7 @@ EXPORT_POLICY = PackagingPolicy(
     max_uncompressed_bytes=25 * 1024 * 1024,
     max_compressed_bytes=25 * 1024 * 1024,
     allowed_top_level_directories=frozenset(
-        {".github", "backend", "docs", "frontend", "ml", "scripts"}
+        {".github", "backend", "deploy", "docs", "frontend", "ml", "scripts"}
     ),
     allowed_root_files=frozenset(
         {
@@ -94,7 +94,15 @@ EXPORT_POLICY = PackagingPolicy(
         }
     ),
     allowed_special_basenames=frozenset(
-        {".dockerignore", ".env.example", ".gitattributes", ".gitignore", "Dockerfile"}
+        {
+            ".dockerignore",
+            ".env.example",
+            ".gitattributes",
+            ".gitignore",
+            "Dockerfile",
+            "recipe-lab-portfolio-sandbox.service",
+            "sandbox.env.example",
+        }
     ),
     # Opaque files cannot receive a meaningful text secret scan. Keep their Git
     # object IDs explicit so any content change requires a policy review.

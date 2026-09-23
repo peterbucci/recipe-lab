@@ -92,6 +92,11 @@ Recipe Lab exposes separate liveness and readiness checks.
 | Backend `GET /api/readiness` | The backend can complete its bounded PostgreSQL check                  | Remove the instance from traffic and investigate the database/dependency path |
 | Frontend `GET /healthz`      | The frontend process is running and answering uncached health requests | Restart or replace the process                                                |
 
+The backend probes are internal-only and are not exposed through the public
+same-origin `/api/*` proxy. Operators and the frontend's `/readyz` probe reach
+them on the private backend origin; public traffic receives `404` for the
+exact `/api/health` and `/api/readiness` paths.
+
 Do not use backend liveness as a traffic-admission check. A process can be healthy enough to answer `/api/health` while its database is unavailable.
 
 Database operations are bounded by `DATABASE_OPERATION_TIMEOUT_SECONDS`. The current supported range is 1–30 seconds, with a default of 5 seconds.
@@ -164,7 +169,7 @@ python -m scripts.run_portfolio_sandbox `
   --port 3100
 ```
 
-The public origin must use HTTPS. The frontend binds to loopback for a separately configured HTTPS proxy; PostgreSQL and the backend do not expose public host ports.
+The public origin must use HTTPS. The frontend binds to loopback by default. A reviewed host deployment may instead bind it to one explicit private Docker host-gateway IPv4 address and require a narrow trusted-proxy CIDR plus the matching private proxy proof. PostgreSQL and the backend never expose host ports. The EC2 firewall must not expose the frontend's host port publicly.
 
 ### Generation lifecycle
 
@@ -228,6 +233,8 @@ Before routing real public traffic, separately verify host/platform behavior suc
 - correct HTTPS, Origin, cookie, and CSRF behavior through the real proxy.
 
 Container-level rehearsal cannot prove those platform controls.
+
+The exact GHCR publication, EC2 systemd service, Coolify dynamic route, staged certification, rollback, and fail-stop procedures are defined in [Portfolio sandbox deployment](portfolio-sandbox-deployment.md).
 
 Sandbox recovery is always a fresh generation. It does not restore visitor data.
 

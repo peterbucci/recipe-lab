@@ -302,6 +302,64 @@ The same private value must be supplied to both services.
 
 Maximum age accepted for a signed frontend network signal.
 
+## `TRUSTED_PROXY_CIDRS`
+
+**Owner:** frontend runtime
+
+**Default:** empty; no forwarding headers are trusted
+
+Optional comma-separated direct-peer allowlist for a reviewed reverse proxy. Entries must be exact IPv4/IPv6 addresses or canonical CIDRs with no host bits. CIDRs are deliberately bounded to IPv4 `/16` or narrower and IPv6 `/64` or narrower.
+
+This setting has no effect by itself. `TRUSTED_PROXY_PROOF_SECRET` must be configured at the same time. The frontend accepts the final `X-Forwarded-For` hop only when it is a valid bare IP, the direct socket peer matches this allowlist, **and** the proof header matches. It never scans leftward past a malformed final hop because earlier values can be caller-supplied. It otherwise derives the client network from the direct peer, preserving the secure default used by direct and local deployments.
+
+Keep the allowlist as narrow as the proxy topology permits. Prefer the exact proxy address; use its narrow private container-network CIDR only when that address is not stable.
+
+## `TRUSTED_PROXY_PROOF_SECRET`
+
+**Owner:** frontend runtime and the immediately adjacent reverse proxy
+
+**Default:** empty; proxy trust is disabled
+
+**Required format:** exactly 64 lowercase hexadecimal characters generated from 32 random bytes
+
+Shared proof used only to authenticate the final reverse-proxy hop. The proxy must overwrite `X-Recipe-Lab-Proxy-Proof` on every request with this value; it must not preserve a caller-supplied value. The frontend compares it in constant time and strips the proof plus every forwarding header before Next.js or the backend handles the request.
+
+`TRUSTED_PROXY_CIDRS` and `TRUSTED_PROXY_PROOF_SECRET` must either both be absent/empty or both be valid. A partial or malformed configuration prevents frontend startup. Store the proof in the deployment secret store; do not put it in Git, command-line arguments, logs, or public proxy labels.
+
+## `SANDBOX_SUPERVISOR_HEARTBEAT_PATH`
+
+**Owner:** frontend runtime in the portfolio sandbox
+
+**Default:** empty; supervisor gating is disabled
+
+Optional path to the supervisor heartbeat used to gate `/readyz`. When enabled,
+the only accepted value is:
+
+```text
+/run/recipe-lab-supervisor/heartbeat
+```
+
+The deployment mounts that single regular file read-only into the frontend
+container. The frontend checks file metadata only; it does not parse file
+contents. A missing, non-regular, stale, or implausibly future-dated heartbeat
+makes readiness fail closed without contacting the backend.
+
+## `SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS`
+
+**Owner:** frontend runtime in the portfolio sandbox
+
+**Default:** empty; supervisor gating is disabled
+
+**Allowed range:** `1`–`300` seconds
+
+**Portfolio sandbox value:** `30`
+
+Maximum age of the supervisor heartbeat accepted by `/readyz`.
+`SANDBOX_SUPERVISOR_HEARTBEAT_PATH` and
+`SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS` must either both be absent/empty or
+both be valid. The normal local and persistent deployment defaults remain
+unchanged when both are empty.
+
 ---
 
 # Rate-limit window and thresholds
@@ -622,6 +680,25 @@ INTERNAL_NETWORK_SIGNAL_SECRET=<private random secret, at least 32 characters>
 RECIPE_API_URL=<backend HTTP(S) origin>
 ```
 
+A deployment behind a reverse proxy that needs forwarded client-network attribution must also provide both:
+
+```text
+TRUSTED_PROXY_CIDRS=<exact proxy IP or narrow canonical proxy CIDR>
+TRUSTED_PROXY_PROOF_SECRET=<64-character lowercase-hex secret generated from 32 random bytes>
+```
+
+Leave both unset when forwarded attribution is not required.
+
+The ephemeral portfolio sandbox additionally enables supervisor liveness
+gating with:
+
+```text
+SANDBOX_SUPERVISOR_HEARTBEAT_PATH=/run/recipe-lab-supervisor/heartbeat
+SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS=30
+```
+
+Other deployment classes leave both settings unset.
+
 A deployment that supports member sign-in must also provide a valid OIDC configuration:
 
 ```text
@@ -690,6 +767,8 @@ A setting that is unused by the current product may still be part of a supported
 | Request bounds          | `MAX_REQUEST_BODY_BYTES`                                                                                                                                                                                       |
 | OIDC                    | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_SCOPES`, `OIDC_ALLOWED_SIGNING_ALGORITHMS`, `OIDC_LOGIN_TTL_SECONDS`, `OIDC_HTTP_TIMEOUT_SECONDS`, `OIDC_CLOCK_SKEW_SECONDS` |
 | Abuse/network           | `ABUSE_RATE_LIMIT_SECRET`, `INTERNAL_NETWORK_SIGNAL_SECRET`, `INTERNAL_NETWORK_SIGNAL_TTL_SECONDS`, `ABUSE_RATE_LIMIT_*`                                                                                       |
+| Reverse-proxy trust     | `TRUSTED_PROXY_CIDRS`, `TRUSTED_PROXY_PROOF_SECRET`                                                                                                                                                           |
+| Sandbox supervision     | `SANDBOX_SUPERVISOR_HEARTBEAT_PATH`, `SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS`                                                                                                                               |
 | Recommendations         | `RECOMMENDATION_MAX_CANDIDATES`, `RECOMMENDATION_MAX_PROFILE_RECORDS`                                                                                                                                          |
 | Frontend backend origin | `RECIPE_API_URL`, compatibility `NEXT_PUBLIC_API_URL`                                                                                                                                                          |
 | Local Compose DB        | `POSTGRES_IMAGE`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`                                                                                                                         |

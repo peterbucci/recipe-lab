@@ -48,6 +48,7 @@ const RESPONSE_HEADERS_TO_REMOVE = [
 
 const PROXY_TIMEOUT_MS = 10_000;
 const CORRELATION_HEADER = "X-Correlation-ID";
+const INTERNAL_ONLY_API_PATHS = new Set(["health", "readiness"]);
 const SAFE_CORRELATION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -103,6 +104,27 @@ function errorResponse({
       },
     },
   );
+}
+
+function isInternalOnlyApiPath(path: readonly string[]): boolean {
+  const segment = path[0];
+  return (
+    path.length === 1 &&
+    typeof segment === "string" &&
+    INTERNAL_ONLY_API_PATHS.has(segment)
+  );
+}
+
+function internalOnlyNotFoundResponse(): Response {
+  return new Response(null, {
+    status: 404,
+    headers: {
+      "Cache-Control": "no-store",
+      "Content-Length": "0",
+      Pragma: "no-cache",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
 
 function backendBaseUrl(): URL {
@@ -237,6 +259,9 @@ export async function proxyApiRequest(
   let isAuthCallback = false;
   try {
     const { path } = await context.params;
+    if (isInternalOnlyApiPath(path)) {
+      return internalOnlyNotFoundResponse();
+    }
     isAuthCallback =
       request.method === "GET" &&
       path.length === 2 &&

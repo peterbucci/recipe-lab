@@ -1,6 +1,10 @@
-import { internalNetworkSignalSecret } from "./trusted-network-signal.mjs";
+import {
+  internalNetworkSignalSecret,
+  trustedProxyConfiguration,
+} from "./trusted-network-signal.mjs";
 
 const APP_ENVIRONMENTS = new Set(["local", "test", "production"]);
+const SUPERVISOR_HEARTBEAT_PATH = "/run/recipe-lab-supervisor/heartbeat";
 
 function applicationEnvironment(environment, development) {
   const configured = environment.APP_ENVIRONMENT?.trim();
@@ -40,6 +44,37 @@ function recipeApiUrl(environment, appEnvironment) {
   return url.origin;
 }
 
+function supervisorHeartbeat(environment) {
+  const configuredPath = environment.SANDBOX_SUPERVISOR_HEARTBEAT_PATH?.trim();
+  const configuredTtl =
+    environment.SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS?.trim();
+  if (!configuredPath && !configuredTtl) {
+    return null;
+  }
+  if (!configuredPath || !configuredTtl) {
+    throw new Error(
+      "SANDBOX_SUPERVISOR_HEARTBEAT_PATH and SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS must be configured together.",
+    );
+  }
+  if (configuredPath !== SUPERVISOR_HEARTBEAT_PATH) {
+    throw new Error(
+      `SANDBOX_SUPERVISOR_HEARTBEAT_PATH must be ${SUPERVISOR_HEARTBEAT_PATH}.`,
+    );
+  }
+  if (!/^[1-9]\d{0,2}$/.test(configuredTtl)) {
+    throw new Error(
+      "SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS must be an integer between 1 and 300.",
+    );
+  }
+  const ttlSeconds = Number(configuredTtl);
+  if (ttlSeconds > 300) {
+    throw new Error(
+      "SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS must be an integer between 1 and 300.",
+    );
+  }
+  return Object.freeze({ path: SUPERVISOR_HEARTBEAT_PATH, ttlSeconds });
+}
+
 export function runtimeConfiguration(
   environment = process.env,
   { development = false } = {},
@@ -52,9 +87,13 @@ export function runtimeConfiguration(
     ...environment,
     NODE_ENV: appEnvironment === "production" ? "production" : "development",
   };
+  const trustedProxy = trustedProxyConfiguration(environment);
   return Object.freeze({
     appEnvironment,
     internalNetworkSignalSecret: internalNetworkSignalSecret(signalEnvironment),
     recipeApiUrl: recipeApiUrl(environment, appEnvironment),
+    supervisorHeartbeat: supervisorHeartbeat(environment),
+    trustedProxyCidrs: trustedProxy.cidrs,
+    trustedProxyProofSecret: trustedProxy.proofSecret,
   });
 }

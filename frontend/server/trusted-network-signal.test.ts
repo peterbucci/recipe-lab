@@ -8,11 +8,13 @@ import {
   NETWORK_HEADER,
   NETWORK_SIGNATURE_HEADER,
   NETWORK_TIMESTAMP_HEADER,
+  PROXY_PROOF_HEADER,
   signNetworkSignal,
   verifyNetworkSignalHeaders,
 } from "./trusted-network-signal.mjs";
 
 const SECRET = "frontend-network-signal-test-secret-123456";
+const PROXY_PROOF = "a".repeat(64);
 
 describe("trusted frontend network boundary", () => {
   it("requires a private shared secret in production", () => {
@@ -45,6 +47,7 @@ describe("trusted frontend network boundary", () => {
       forwarded: "for=198.51.100.9",
       "x-forwarded-for": "198.51.100.9",
       "x-real-ip": "198.51.100.9",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
       [NETWORK_HEADER]: "198.51.100.0/24",
       [NETWORK_TIMESTAMP_HEADER]: "1000000000",
       [NETWORK_SIGNATURE_HEADER]: "0".repeat(64),
@@ -61,9 +64,234 @@ describe("trusted frontend network boundary", () => {
     expect(headers).not.toHaveProperty("forwarded");
     expect(headers).not.toHaveProperty("x-forwarded-for");
     expect(headers).not.toHaveProperty("x-real-ip");
+    expect(headers).not.toHaveProperty(PROXY_PROOF_HEADER);
     expect(headers[NETWORK_HEADER]).toBe("203.0.113.0/24");
     expect(headers[NETWORK_TIMESTAMP_HEADER]).toBe("1800000000");
     expect(headers[NETWORK_SIGNATURE_HEADER]).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("uses the rightmost valid forwarded hop only from a proven trusted peer", () => {
+    const headers = {
+      forwarded: "for=192.0.2.22",
+      "x-forwarded-for": "192.0.2.22, unknown, 198.51.100.77",
+      "x-forwarded-host": "attacker.example",
+      "x-forwarded-port": "443",
+      "x-forwarded-proto": "https",
+      "x-real-ip": "192.0.2.22",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "172.18.0.9",
+      forwardedFor: [headers["x-forwarded-for"]],
+      method: "POST",
+      path: "/api/recipe-drafts",
+      proxyProof: [headers[PROXY_PROOF_HEADER]],
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("198.51.100.0/24");
+    expect(headers).not.toHaveProperty("forwarded");
+    expect(headers).not.toHaveProperty("x-forwarded-for");
+    expect(headers).not.toHaveProperty("x-forwarded-host");
+    expect(headers).not.toHaveProperty("x-forwarded-port");
+    expect(headers).not.toHaveProperty("x-forwarded-proto");
+    expect(headers).not.toHaveProperty("x-real-ip");
+    expect(headers).not.toHaveProperty(PROXY_PROOF_HEADER);
+  });
+
+  it("rejects duplicate proxy-proof field lines", () => {
+    const headers: Record<string, string> = {
+      "x-forwarded-for": "198.51.100.77",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "172.18.0.9",
+      forwardedFor: [headers["x-forwarded-for"]],
+      method: "GET",
+      path: "/api/recipes",
+      proxyProof: [PROXY_PROOF, PROXY_PROOF],
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("172.18.0.0/24");
+    expect(headers).not.toHaveProperty(PROXY_PROOF_HEADER);
+  });
+
+  it.each([
+    ["missing proof", "172.18.0.9", undefined],
+    ["incorrect proof", "172.18.0.9", "b".repeat(64)],
+    ["untrusted peer", "172.20.0.9", PROXY_PROOF],
+  ])(
+    "ignores forwarded addresses for a %s",
+    (_caseName, remoteAddress, proxyProof) => {
+      const headers: Record<string, string> = {
+        "x-forwarded-for": "198.51.100.77",
+      };
+      if (proxyProof) {
+        headers[PROXY_PROOF_HEADER] = proxyProof;
+      }
+
+      hardenIncomingNetworkHeaders(headers, {
+        remoteAddress,
+        method: "GET",
+        path: "/api/recipes",
+        secret: SECRET,
+        timestamp: 1_800_000_000,
+        trustedProxyCidrs: ["172.18.0.0/16"],
+        trustedProxyProofSecret: PROXY_PROOF,
+      });
+
+      expect(headers[NETWORK_HEADER]).toBe(
+        remoteAddress === "172.20.0.9" ? "172.20.0.0/24" : "172.18.0.0/24",
+      );
+      expect(headers).not.toHaveProperty("x-forwarded-for");
+      expect(headers).not.toHaveProperty(PROXY_PROOF_HEADER);
+    },
+  );
+
+  it("matches IPv4-mapped socket peers against IPv4 trusted ranges", () => {
+    const headers: Record<string, string> = {
+      "x-forwarded-for": "203.0.113.90",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "::ffff:172.18.0.9",
+      method: "GET",
+      path: "/api/recipes",
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("203.0.113.0/24");
+  });
+
+  it("does not scan leftward past a malformed final hop", () => {
+    const headers: Record<string, string> = {
+      "x-forwarded-for": "192.0.2.22, unknown",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "172.18.0.9",
+      method: "GET",
+      path: "/api/recipes",
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("172.18.0.0/24");
+  });
+
+  it("falls back to the peer when the forwarded chain exceeds its bound", () => {
+    const headers: Record<string, string> = {
+      "x-forwarded-for": Array.from(
+        { length: 33 },
+        (_, index) => `198.51.100.${index + 1}`,
+      ).join(","),
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "172.18.0.9",
+      method: "GET",
+      path: "/api/recipes",
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("172.18.0.0/24");
+  });
+
+  it.each([
+    ["duplicate", ["198.51.100.7", "203.0.113.8"]],
+    ["invalid", "unknown, not-an-ip"],
+  ])("falls back to the peer for a %s forwarded header", (_caseName, forwardedFor) => {
+    const headers: Record<string, string | string[]> = {
+      "x-forwarded-for": forwardedFor,
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "172.18.0.9",
+      method: "GET",
+      path: "/api/recipes",
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("172.18.0.0/24");
+    expect(headers).not.toHaveProperty("x-forwarded-for");
+    expect(headers).not.toHaveProperty(PROXY_PROOF_HEADER);
+  });
+
+  it("supports a proven IPv6 proxy and forwarded client", () => {
+    const headers: Record<string, string> = {
+      "x-forwarded-for": "2001:db8:abcd:12ff::1",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "fd00:1234::9",
+      method: "GET",
+      path: "/api/recipes",
+      secret: SECRET,
+      timestamp: 1_800_000_000,
+      trustedProxyCidrs: ["fd00:1234::/64"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    expect(headers[NETWORK_HEADER]).toBe("2001:db8:abcd:1200::/56");
+  });
+
+  it("strips proxy metadata from non-API requests without creating a signal", () => {
+    const headers: Record<string, string> = {
+      forwarded: "for=198.51.100.7",
+      "x-forwarded-for": "198.51.100.7",
+      "x-forwarded-host": "recipes.example",
+      "x-forwarded-port": "443",
+      "x-forwarded-proto": "https",
+      "x-real-ip": "198.51.100.7",
+      [PROXY_PROOF_HEADER]: PROXY_PROOF,
+    };
+
+    hardenIncomingNetworkHeaders(headers, {
+      remoteAddress: "172.18.0.9",
+      method: "GET",
+      path: "/recipes",
+      secret: SECRET,
+      trustedProxyCidrs: ["172.18.0.0/16"],
+      trustedProxyProofSecret: PROXY_PROOF,
+    });
+
+    for (const name of [
+      "forwarded",
+      "x-forwarded-for",
+      "x-forwarded-host",
+      "x-forwarded-port",
+      "x-forwarded-proto",
+      "x-real-ip",
+      PROXY_PROOF_HEADER,
+    ]) {
+      expect(headers).not.toHaveProperty(name);
+    }
+    expect(headers).not.toHaveProperty(NETWORK_HEADER);
   });
 
   it("binds fresh signals to their method and path and rejects tampering", () => {

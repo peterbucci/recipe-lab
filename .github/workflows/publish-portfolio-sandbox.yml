@@ -1,0 +1,557 @@
+name: Publish portfolio sandbox images
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Exact tag or commit to publish (must resolve to a commit on the default branch)
+        required: true
+        type: string
+      expected_commit:
+        description: Full 40-character commit SHA that release_ref must resolve to
+        required: true
+        type: string
+      confirm_publish:
+        description: Publish the verified images to GHCR
+        required: true
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: portfolio-sandbox-publish-${{ inputs.expected_commit }}
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Select reviewed source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ci_run_id: ${{ steps.gates.outputs.ci_run_id }}
+      commit: ${{ steps.selection.outputs.commit }}
+      rehearsal_run_id: ${{ steps.gates.outputs.rehearsal_run_id }}
+    steps:
+      - name: Check out the explicitly selected ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.release_ref }}
+
+      - name: Require the expected commit on the default branch
+        id: selection
+        shell: bash
+        env:
+          CONFIRM_PUBLISH: ${{ inputs.confirm_publish }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRM_PUBLISH" != "true" ]]; then
+            echo "Publishing was not explicitly confirmed."
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_commit must be a full lowercase commit SHA."
+            exit 1
+          fi
+          selected_commit="$(git rev-parse --verify 'HEAD^{commit}')"
+          if [[ "$selected_commit" != "$EXPECTED_COMMIT" ]]; then
+            echo "The selected ref did not resolve to expected_commit."
+            exit 1
+          fi
+          git fetch --no-tags origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+          if ! git merge-base --is-ancestor \
+            "$selected_commit" "refs/remotes/origin/${DEFAULT_BRANCH}"; then
+            echo "The selected commit is not on the default branch."
+            exit 1
+          fi
+          echo "commit=$selected_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Require exact-commit CI and release rehearsal
+        id: gates
+        shell: bash
+        env:
+          ACTIONS_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from urllib.parse import quote, urlencode
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          commit = os.environ["EXPECTED_COMMIT"]
+          default_branch = os.environ["DEFAULT_BRANCH"]
+          token = os.environ["ACTIONS_READ_TOKEN"]
+          accepted_events = {"push", "workflow_dispatch"}
+
+          def require_success(workflow: str) -> int:
+              query = urlencode(
+                  {"branch": default_branch, "head_sha": commit, "status": "success", "per_page": 100}
+              )
+              url = (
+                  f"https://api.github.com/repos/{repository}/actions/workflows/"
+                  f"{quote(workflow, safe='')}/runs?{query}"
+              )
+              request = Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urlopen(request, timeout=20) as response:
+                  payload = json.load(response)
+              matches = [
+                  run
+                  for run in payload.get("workflow_runs", [])
+                  if run.get("head_sha") == commit
+                  and run.get("head_branch") == default_branch
+                  and run.get("conclusion") == "success"
+                  and run.get("event") in accepted_events
+                  and isinstance(run.get("id"), int)
+              ]
+              if not matches:
+                  raise SystemExit(
+                      f"No successful exact-commit {workflow} run exists on the default branch."
+                  )
+              return max(matches, key=lambda run: (run.get("run_attempt", 0), run["id"]))["id"]
+
+          ci_run_id = require_success("ci.yml")
+          rehearsal_run_id = require_success("release-rehearsal.yml")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"ci_run_id={ci_run_id}\n")
+              output.write(f"rehearsal_run_id={rehearsal_run_id}\n")
+          PY
+
+  verify:
+    name: Build, verify, and scan
+    needs: select
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      BACKEND_IMAGE: recipe-lab-backend:portfolio-release-candidate
+      FRONTEND_IMAGE: recipe-lab-frontend:portfolio-release-candidate
+      SOURCE_COMMIT: ${{ needs.select.outputs.commit }}
+    steps:
+      - name: Configure bounded runner paths
+        shell: bash
+        run: |
+          {
+            echo "PRIVATE_DIR=$RUNNER_TEMP/recipe-lab-portfolio-private"
+            echo "SAFE_DIR=$RUNNER_TEMP/recipe-lab-portfolio-safe"
+            echo "TRIVY_CACHE_DIR=$RUNNER_TEMP/recipe-lab-portfolio-trivy-cache"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out the selected commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ needs.select.outputs.commit }}
+
+      - name: Set up pinned Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: false
+
+      - name: Build and exercise the production images
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse --verify 'HEAD^{commit}')" = "$SOURCE_COMMIT"
+          install -d -m 0700 -- "$PRIVATE_DIR" "$SAFE_DIR"
+          python scripts/verify_production_images.py \
+            --backend-image "$BACKEND_IMAGE" \
+            --frontend-image "$FRONTEND_IMAGE" \
+            --backend-context . \
+            --backend-dockerfile backend/Dockerfile \
+            --frontend-context frontend \
+            --frontend-dockerfile frontend/Dockerfile \
+            --report "$SAFE_DIR/production-image-report.json"
+
+      - name: Scan the exact verified images
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(trivy --version | awk '/^Version:/ {print $2; exit}')" = "0.74.0"
+          trivy image --download-db-only --no-progress
+          for role in backend frontend; do
+            if [[ "$role" == "backend" ]]; then
+              image="$BACKEND_IMAGE"
+            else
+              image="$FRONTEND_IMAGE"
+            fi
+            if ! trivy image \
+              --skip-db-update \
+              --scanners vuln,secret \
+              --severity HIGH,CRITICAL \
+              --exit-code 1 \
+              --no-progress \
+              --format json \
+              --output "$PRIVATE_DIR/${role}-scan.json" \
+              "$image"; then
+              echo "The ${role} release image did not pass the vulnerability and secret gate."
+              exit 1
+            fi
+          done
+
+      - name: Seal the verified image bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          docker save "$BACKEND_IMAGE" | zstd -T0 -10 -o "$SAFE_DIR/backend-image.tar.zst"
+          docker save "$FRONTEND_IMAGE" | zstd -T0 -10 -o "$SAFE_DIR/frontend-image.tar.zst"
+          (
+            cd "$SAFE_DIR"
+            sha256sum \
+              backend-image.tar.zst \
+              frontend-image.tar.zst \
+              production-image-report.json \
+              > bundle.sha256
+          )
+
+      - name: Upload the sealed image bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portfolio-sandbox-images-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/recipe-lab-portfolio-safe/backend-image.tar.zst
+            ${{ runner.temp }}/recipe-lab-portfolio-safe/frontend-image.tar.zst
+            ${{ runner.temp }}/recipe-lab-portfolio-safe/production-image-report.json
+            ${{ runner.temp }}/recipe-lab-portfolio-safe/bundle.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Remove private scan material
+        if: ${{ always() }}
+        shell: bash
+        run: rm -rf -- "$PRIVATE_DIR" "$TRIVY_CACHE_DIR"
+
+  publish:
+    name: Publish immutable digests
+    needs:
+      - select
+      - verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: portfolio-sandbox-release
+    permissions:
+      packages: write
+    env:
+      BACKEND_REGISTRY: ghcr.io/${{ github.repository_owner }}/recipe-lab-backend
+      FRONTEND_REGISTRY: ghcr.io/${{ github.repository_owner }}/recipe-lab-frontend
+      SOURCE_COMMIT: ${{ needs.select.outputs.commit }}
+    steps:
+      - name: Configure bounded publisher paths
+        shell: bash
+        run: |
+          {
+            echo "PRIVATE_DIR=$RUNNER_TEMP/recipe-lab-portfolio-publish-private"
+            echo "SAFE_DIR=$RUNNER_TEMP/recipe-lab-portfolio-publish"
+            echo "TRIVY_CACHE_DIR=$RUNNER_TEMP/recipe-lab-portfolio-publish-trivy-cache"
+          } >> "$GITHUB_ENV"
+
+      - name: Download the sealed image bundle
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: portfolio-sandbox-images-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/recipe-lab-portfolio-publish
+
+      - name: Validate and load the verified images
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 -- "$PRIVATE_DIR"
+          cd "$SAFE_DIR"
+          test "$(wc -l < bundle.sha256)" -eq 3
+          sha256sum --check --strict bundle.sha256
+          zstd -d --stdout backend-image.tar.zst | docker load
+          zstd -d --stdout frontend-image.tar.zst | docker load
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["SAFE_DIR"]) / "production-image-report.json").read_text()
+          )
+          if report.get("status") != "passed" or report.get("schema_version") != 1:
+              raise SystemExit("The production-image report is invalid.")
+          pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          for role in ("backend", "frontend"):
+              expected = report.get("images", {}).get(role, {}).get("id", "")
+              image = f"recipe-lab-{role}:portfolio-release-candidate"
+              actual = subprocess.run(
+                  ["docker", "image", "inspect", "--format", "{{.Id}}", image],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout.strip()
+              if not pattern.fullmatch(expected) or actual != expected:
+                  raise SystemExit("A loaded image did not match the verified image ID.")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
+              environment.write(
+                  f'VERIFIED_BACKEND_ID={report["images"]["backend"]["id"]}\n'
+              )
+              environment.write(
+                  f'VERIFIED_FRONTEND_ID={report["images"]["frontend"]["id"]}\n'
+              )
+          PY
+
+      - name: Set up pinned Trivy for registry verification
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: false
+
+      - name: Prepare the registry scan database
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(trivy --version | awk '/^Version:/ {print $2; exit}')" = "0.74.0"
+          trivy image --download-db-only --no-progress
+
+      - name: Log in to GHCR only for publication
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish or resume exact commit tags
+        id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="sha-${SOURCE_COMMIT}"
+          backend_ref="${BACKEND_REGISTRY}:${tag}"
+          frontend_ref="${FRONTEND_REGISTRY}:${tag}"
+
+          publish_or_resume() {
+            local role="$1"
+            local candidate="$2"
+            local reference="$3"
+            local expected_id="$4"
+            local check_output="$PRIVATE_DIR/${role}-existing-tag-check.txt"
+            local check_status
+
+            set +e
+            docker pull "$reference" > "$check_output" 2>&1
+            check_status=$?
+            set -e
+            if [[ "$check_status" -eq 0 ]]; then
+              existing_id="$(docker image inspect --format '{{.Id}}' "$reference")"
+              if [[ "$existing_id" != "$expected_id" ]]; then
+                echo "The ${role} commit tag already identifies different image content."
+                exit 1
+              fi
+              echo "The existing ${role} commit tag matches the sealed image; resuming."
+              return
+            fi
+            if ! grep -Eqi 'manifest unknown|name unknown' "$check_output"; then
+              echo "The ${role} registry tag could not be checked safely."
+              exit 1
+            fi
+            docker tag "$candidate" "$reference"
+            docker push "$reference"
+          }
+
+          publish_or_resume \
+            backend \
+            recipe-lab-backend:portfolio-release-candidate \
+            "$backend_ref" \
+            "$VERIFIED_BACKEND_ID"
+          publish_or_resume \
+            frontend \
+            recipe-lab-frontend:portfolio-release-candidate \
+            "$frontend_ref" \
+            "$VERIFIED_FRONTEND_ID"
+
+          mapfile -t backend_repo_digests < <(
+            docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' \
+              "$backend_ref" | grep -E "^${BACKEND_REGISTRY}@sha256:[0-9a-f]{64}$" | sort -u
+          )
+          mapfile -t frontend_repo_digests < <(
+            docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' \
+              "$frontend_ref" | grep -E "^${FRONTEND_REGISTRY}@sha256:[0-9a-f]{64}$" | sort -u
+          )
+          if [[ "${#backend_repo_digests[@]}" -ne 1 \
+            || "${#frontend_repo_digests[@]}" -ne 1 ]]; then
+            echo "The registry did not return one unambiguous digest per image."
+            exit 1
+          fi
+          backend_digest="${backend_repo_digests[0]##*@}"
+          frontend_digest="${frontend_repo_digests[0]##*@}"
+          echo "backend_digest=$backend_digest" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$frontend_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Pull, inspect, and scan the published digests
+        shell: bash
+        env:
+          BACKEND_DIGEST: ${{ steps.registry.outputs.backend_digest }}
+          FRONTEND_DIGEST: ${{ steps.registry.outputs.frontend_digest }}
+        run: |
+          set -euo pipefail
+          backend_reference="${BACKEND_REGISTRY}@${BACKEND_DIGEST}"
+          frontend_reference="${FRONTEND_REGISTRY}@${FRONTEND_DIGEST}"
+
+          docker image rm \
+            "${BACKEND_REGISTRY}:sha-${SOURCE_COMMIT}" \
+            "${FRONTEND_REGISTRY}:sha-${SOURCE_COMMIT}" \
+            recipe-lab-backend:portfolio-release-candidate \
+            recipe-lab-frontend:portfolio-release-candidate \
+            > /dev/null 2>&1 || true
+          docker image rm --force "$VERIFIED_BACKEND_ID" "$VERIFIED_FRONTEND_ID" \
+            > /dev/null 2>&1 || true
+          if docker image inspect "$VERIFIED_BACKEND_ID" > /dev/null 2>&1 \
+            || docker image inspect "$VERIFIED_FRONTEND_ID" > /dev/null 2>&1; then
+            echo "A local candidate image could not be removed before the registry pull."
+            exit 1
+          fi
+          docker pull "$backend_reference"
+          docker pull "$frontend_reference"
+
+          test "$(docker image inspect --format '{{.Id}}' "$backend_reference")" \
+            = "$VERIFIED_BACKEND_ID"
+          test "$(docker image inspect --format '{{.Id}}' "$frontend_reference")" \
+            = "$VERIFIED_FRONTEND_ID"
+
+          for role in backend frontend; do
+            if [[ "$role" == "backend" ]]; then
+              reference="$backend_reference"
+            else
+              reference="$frontend_reference"
+            fi
+            if ! trivy image \
+              --skip-db-update \
+              --scanners vuln,secret \
+              --severity HIGH,CRITICAL \
+              --exit-code 1 \
+              --no-progress \
+              --format json \
+              --output "$PRIVATE_DIR/${role}-published-scan.json" \
+              "$reference"; then
+              echo "The published ${role} digest did not pass the registry verification scan."
+              exit 1
+            fi
+          done
+
+      - name: Remove registry credentials
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          docker logout ghcr.io > /dev/null 2>&1 || true
+          rm -rf -- "$PRIVATE_DIR" "$TRIVY_CACHE_DIR"
+
+      - name: Write sanitized release evidence
+        if: ${{ success() }}
+        shell: bash
+        env:
+          BACKEND_DIGEST: ${{ steps.registry.outputs.backend_digest }}
+          CI_RUN_ID: ${{ needs.select.outputs.ci_run_id }}
+          FRONTEND_DIGEST: ${{ steps.registry.outputs.frontend_digest }}
+          REHEARSAL_RUN_ID: ${{ needs.select.outputs.rehearsal_run_id }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          digest_pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          commit_pattern = re.compile(r"[0-9a-f]{40}\Z")
+          commit = os.environ["SOURCE_COMMIT"]
+          backend_digest = os.environ["BACKEND_DIGEST"]
+          frontend_digest = os.environ["FRONTEND_DIGEST"]
+          if not commit_pattern.fullmatch(commit):
+              raise SystemExit("The selected commit is invalid.")
+          if not all(digest_pattern.fullmatch(value) for value in (backend_digest, frontend_digest)):
+              raise SystemExit("A published registry digest is invalid.")
+
+          verification = json.loads(
+              (Path(os.environ["SAFE_DIR"]) / "production-image-report.json").read_text()
+          )
+          evidence = {
+              "images": {
+                  "backend": {
+                      "local_image_id": verification["images"]["backend"]["id"],
+                      "reference": f'{os.environ["BACKEND_REGISTRY"]}@{backend_digest}',
+                      "registry_digest": backend_digest,
+                  },
+                  "frontend": {
+                      "local_image_id": verification["images"]["frontend"]["id"],
+                      "reference": f'{os.environ["FRONTEND_REGISTRY"]}@{frontend_digest}',
+                      "registry_digest": frontend_digest,
+                  },
+              },
+              "schema_version": 1,
+              "source": {
+                  "commit": commit,
+                  "repository": os.environ["GITHUB_REPOSITORY"],
+                  "required_runs": {
+                      "ci": int(os.environ["CI_RUN_ID"]),
+                      "release_rehearsal": int(os.environ["REHEARSAL_RUN_ID"]),
+                  },
+              },
+              "status": "published",
+              "verification": {
+                  "production_image_gate": "passed",
+                  "published_digest_pull": "passed",
+                  "published_digest_scan": "passed",
+                  "scanners": ["vulnerability", "secret"],
+                  "severity_gate": ["HIGH", "CRITICAL"],
+              },
+              "workflow": {
+                  "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+                  "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              },
+          }
+          destination = Path(os.environ["SAFE_DIR"]) / "release-evidence.json"
+          destination.write_text(
+              json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          {
+            echo "### Portfolio sandbox image release"
+            echo
+            echo "Source commit: \`${SOURCE_COMMIT}\`"
+            echo
+            echo "Backend: \`${BACKEND_REGISTRY}@${BACKEND_DIGEST}\`"
+            echo
+            echo "Frontend: \`${FRONTEND_REGISTRY}@${FRONTEND_DIGEST}\`"
+            echo
+            echo "Deploy only these digest-qualified references, never the commit tags."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized digest evidence
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portfolio-sandbox-release-${{ needs.select.outputs.commit }}
+          path: ${{ runner.temp }}/recipe-lab-portfolio-publish/release-evidence.json
+          if-no-files-found: error
+          retention-days: 90

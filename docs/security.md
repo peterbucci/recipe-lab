@@ -136,7 +136,14 @@ Protected requests can be limited using network and, for authenticated requests,
 
 Bucket identifiers are derived rather than stored as raw identifiers. Network data is normalized before hashing, and provider subjects or account identifiers are not stored directly in rate-limit keys.
 
-The frontend proxy removes caller-supplied forwarding/internal-signal headers and creates the trusted network signal expected by the backend. If that signal cannot be validated, the backend falls back to the connection information it can trust itself.
+The frontend proxy removes caller-supplied forwarding, proxy-proof, and internal-signal headers before Next.js or the backend can observe them. By default it derives the trusted network signal only from the direct socket peer. A deployment may opt into `X-Forwarded-For` only by configuring both narrow trusted-proxy ranges and a separate high-entropy proof that the reviewed proxy overwrites on every request. Both the direct peer and the proof must match; otherwise the frontend ignores the forwarded chain. If the resulting frontend signal cannot be validated, the backend falls back to the connection information it can trust itself.
+
+In the ephemeral portfolio sandbox, `/readyz` also requires a fresh regular
+heartbeat file mounted read-only from the host supervisor. The heartbeat check
+runs before the shared, short-lived backend readiness probe and again before a
+successful response. A missing or stale supervisor heartbeat therefore removes
+the instance from proxy routing without amplifying concurrent external probes
+into one database check per request.
 
 Abuse-counter updates intentionally commit before the protected endpoint runs. A later validation error, authorization failure, conflict, or domain rollback must not erase the recorded attempt.
 
