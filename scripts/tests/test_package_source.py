@@ -156,7 +156,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
-        self.assertEqual(policy_report["version"], 6)
+        self.assertEqual(policy_report["version"], 7)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
         self.assertEqual(archive_report["sha256"], hashlib.sha256(output.read_bytes()).hexdigest())
@@ -187,6 +187,38 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             self.assertFalse(any(".env" in name for name in names))
             self.assertEqual(len(names), 3)
         self.assertNotIn(ignored_secret, output.read_bytes().decode("latin1"))
+
+    def test_packages_only_the_reviewed_host_deployment_artifacts(self) -> None:
+        self._write(
+            "deploy/systemd/recipe-lab-portfolio-sandbox.service",
+            "[Service]\nExecStart=/usr/bin/false\n",
+        )
+        self._write(
+            "deploy/systemd/sandbox.env.example",
+            "TRUSTED_PROXY_PROOF_SECRET=<generated-on-host>\n",
+        )
+        commit_sha = self._commit("add reviewed host deployment artifacts")
+
+        output, report = self._package(revision=commit_sha)
+
+        files = cast(list[dict[str, Any]], report["files"])
+        exported_paths = [file_report["path"] for file_report in files]
+        self.assertIn(
+            "deploy/systemd/recipe-lab-portfolio-sandbox.service", exported_paths
+        )
+        self.assertIn("deploy/systemd/sandbox.env.example", exported_paths)
+        archive_root = f"recipe-lab-{commit_sha[:12]}"
+        with zipfile.ZipFile(output) as archive:
+            self.assertEqual(
+                archive.read(
+                    f"{archive_root}/deploy/systemd/recipe-lab-portfolio-sandbox.service"
+                ),
+                b"[Service]\nExecStart=/usr/bin/false\n",
+            )
+            self.assertEqual(
+                archive.read(f"{archive_root}/deploy/systemd/sandbox.env.example"),
+                b"TRUSTED_PROXY_PROOF_SECRET=<generated-on-host>\n",
+            )
 
     def test_explicit_older_revision_uses_committed_blob_not_worktree(self) -> None:
         first_sha = self._git("rev-parse", "HEAD").stdout.decode("ascii").strip()
@@ -368,6 +400,20 @@ class RejectedTreeTests(SourcePackageTestCase):
         self._commit_and_reject(
             "backend/uv.lock",
             'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n',
+            "File type is not in the export allowlist",
+        )
+
+    def test_rejects_unreviewed_systemd_service(self) -> None:
+        self._commit_and_reject(
+            "deploy/systemd/unreviewed.service",
+            "[Service]\nExecStart=/usr/bin/false\n",
+            "File type is not in the export allowlist",
+        )
+
+    def test_rejects_unreviewed_nested_environment_example(self) -> None:
+        self._commit_and_reject(
+            "deploy/systemd/unreviewed.env.example",
+            "VALUE=<generated-on-host>\n",
             "File type is not in the export allowlist",
         )
 
