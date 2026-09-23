@@ -203,16 +203,12 @@ class SuccessfulPackageTests(SourcePackageTestCase):
 
         files = cast(list[dict[str, Any]], report["files"])
         exported_paths = [file_report["path"] for file_report in files]
-        self.assertIn(
-            "deploy/systemd/recipe-lab-portfolio-sandbox.service", exported_paths
-        )
+        self.assertIn("deploy/systemd/recipe-lab-portfolio-sandbox.service", exported_paths)
         self.assertIn("deploy/systemd/sandbox.env.example", exported_paths)
         archive_root = f"recipe-lab-{commit_sha[:12]}"
         with zipfile.ZipFile(output) as archive:
             self.assertEqual(
-                archive.read(
-                    f"{archive_root}/deploy/systemd/recipe-lab-portfolio-sandbox.service"
-                ),
+                archive.read(f"{archive_root}/deploy/systemd/recipe-lab-portfolio-sandbox.service"),
                 b"[Service]\nExecStart=/usr/bin/false\n",
             )
             self.assertEqual(
