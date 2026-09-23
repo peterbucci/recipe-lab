@@ -108,21 +108,52 @@ rmdir "$release_stage"
 
 If `current` exists and is not a symlink, stop and inspect it instead of replacing it. For a later release, give the temporary symlink a new unique name and use the same final rename only after the new checkout and images pass rehearsal.
 
-## 3. Pull immutable images and map local IDs
+## 3. Pull immutable images and map runtime IDs
 
-Copy the two complete `reference` values from `release-evidence.json`; do not type or shorten the digests:
+Copy each complete `reference`, `registry_digest`, and `local_image_id` value from `release-evidence.json`; do not type or shorten the digests:
 
 ```bash
 backend_ref='ghcr.io/peterbucci/recipe-lab-backend@sha256:<backend-manifest-digest>'
 frontend_ref='ghcr.io/peterbucci/recipe-lab-frontend@sha256:<frontend-manifest-digest>'
+backend_registry_digest='sha256:<backend-manifest-digest>'
+frontend_registry_digest='sha256:<frontend-manifest-digest>'
+backend_config_id='sha256:<backend-local-image-id>'
+frontend_config_id='sha256:<frontend-local-image-id>'
 sudo docker pull "$backend_ref"
 sudo docker pull "$frontend_ref"
-backend_id="$(sudo docker image inspect --format '{{.Id}}' "$backend_ref")"
-frontend_id="$(sudo docker image inspect --format '{{.Id}}' "$frontend_ref")"
+
+resolve_runtime_id() {
+  local reference="$1" expected_registry_digest="$2" expected_config_id="$3"
+  local runtime_id manifest_config_id
+  [ "${reference##*@}" = "$expected_registry_digest" ] || return 1
+  runtime_id="$(sudo docker image inspect --format '{{.Id}}' "$reference")" || return 1
+  if [ "$runtime_id" = "$expected_config_id" ]; then
+    : # Docker's classic image store addresses the platform config directly.
+  elif [ "$runtime_id" = "$expected_registry_digest" ]; then
+    # Docker's containerd image store addresses this single-platform image by manifest.
+    manifest_config_id="$(
+      sudo docker buildx imagetools inspect --raw "$reference" |
+        python3 -c 'import json, sys; print(json.load(sys.stdin)["config"]["digest"])'
+    )" || return 1
+    [ "$manifest_config_id" = "$expected_config_id" ] || return 1
+  else
+    return 1
+  fi
+  [ "$(sudo docker image inspect --format '{{.Id}}' "$runtime_id")" = "$runtime_id" ] \
+    || return 1
+  printf '%s\n' "$runtime_id"
+}
+
+backend_id="$(resolve_runtime_id \
+  "$backend_ref" "$backend_registry_digest" "$backend_config_id")" \
+  || { echo 'Backend image identity check failed.' >&2; exit 1; }
+frontend_id="$(resolve_runtime_id \
+  "$frontend_ref" "$frontend_registry_digest" "$frontend_config_id")" \
+  || { echo 'Frontend image identity check failed.' >&2; exit 1; }
 printf 'backend=%s\nfrontend=%s\n' "$backend_id" "$frontend_id"
 ```
 
-Both local IDs must match `^sha256:[0-9a-f]{64}$` and the `local_image_id` fields in the evidence. The supervisor deliberately accepts local IDs only, so a later tag change cannot alter a running or replacement generation.
+Both runtime IDs must match `^sha256:[0-9a-f]{64}$`. Docker's classic image store normally uses the evidence `local_image_id` (the platform config digest). Docker 29's containerd image store may instead require the evidence `registry_digest` (the manifest digest); in that branch, the raw immutable manifest must bind back to the evidence `local_image_id` exactly. The supervisor accepts only the verified bare runtime ID, never a mutable tag, so a later tag change cannot alter a running or replacement generation.
 
 For private GHCR packages, perform only the pull through an ephemeral authenticated configuration, then remove it:
 
@@ -222,7 +253,7 @@ sudo -u recipe-lab-sandbox -- \
   /opt/recipe-lab/tooling/rehearsal-venv/bin/python -c 'import cryptography'
 ```
 
-From the exact release source, run the repository-owned two-generation rehearsal using that locked interpreter and the pulled local IDs:
+From the exact release source, run the repository-owned two-generation rehearsal using that locked interpreter and the verified runtime IDs:
 
 ```bash
 cd /opt/recipe-lab/current
@@ -373,7 +404,7 @@ The unauthenticated request should receive `401` during staging. With staging cr
 
 Complete and retain bounded, sanitized evidence for issue #279 before public access:
 
-1. **Exact release:** source commit, release workflow run, both GHCR manifest digests, and both matching local image IDs.
+1. **Exact release:** source commit, release workflow run, both GHCR manifest digests, both matching platform config IDs, and the verified runtime IDs used by this host.
 2. **Host privacy:** no swap, no database volume/backup/replica/archive, no crash dumps, container log driver `none`, no proxy access log/trace for this router, and reviewed EBS/AWS backup behavior.
 3. **Network boundary:** only ports 80/443 public; 3100 bound only to the private host-gateway address; backend/PostgreSQL have no host listener; trusted proxy and spoof-resistance checks pass.
 4. **HTTPS behavior:** correct certificate, HTTP redirect, exact production origin, Secure/HttpOnly/SameSite cookies, CSRF rejection, and no OIDC path in sandbox mode.
@@ -402,11 +433,11 @@ This completes the deployment portion of issue #21. Portfolio screenshots and pu
 
 ### Planned rollback
 
-Use the prior release's retained `release-evidence.json`. Pull both prior digest-qualified references, verify their local IDs, and rehearse that exact pair. Then:
+Use the prior release's retained `release-evidence.json`. Pull both prior digest-qualified references, verify their runtime IDs and config-to-manifest bindings as above, and rehearse that exact pair. Then:
 
 1. Re-add staging Basic Auth to withdraw general public access.
 2. Stop the service and confirm the current generation is fully removed.
-3. Atomically replace `/etc/recipe-lab/sandbox.env` with the prior local IDs and point `/opt/recipe-lab/current` to the matching prior source commit.
+3. Atomically replace `/etc/recipe-lab/sandbox.env` with the prior verified runtime IDs and point `/opt/recipe-lab/current` to the matching prior source commit.
 4. Run `systemd-analyze verify`, start the service, and require `/readyz` through Coolify.
 5. Repeat the hosted smoke and stale-session checks before removing staging protection.
 

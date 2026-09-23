@@ -622,7 +622,7 @@ def start_generation(
         raise SandboxOperationError("The sandbox heartbeat generation does not match.")
     for image_id in (backend_image, frontend_image):
         if IMAGE_ID.fullmatch(image_id) is None:
-            raise SandboxOperationError("Use exact verified local image IDs.")
+            raise SandboxOperationError("Use exact verified immutable runtime image IDs.")
         if docker(["image", "inspect", "--format", "{{.Id}}", image_id]) != image_id:
             raise SandboxOperationError("An image identity did not match.")
     remaining = int((generation.expires_at - datetime.now(UTC)).total_seconds())

@@ -70,6 +70,29 @@ TABLES = (
     "ingredient_catalog_requests",
     "ingredient_catalog_audit_events",
 )
+PRIVATE_BACKEND_PROBES = frozenset({"/api/health", "/api/readiness"})
+FRONTEND_LIFECYCLE_PROBES = {
+    "/healthz": (200, b"ok\n"),
+    "/readyz": (503, b"unavailable\n"),
+}
+BACKEND_STATUS_PROBE = """\
+import sys
+from urllib.error import HTTPError
+from urllib.request import ProxyHandler, Request, build_opener
+
+request = Request(
+    "http://127.0.0.1:8000" + sys.argv[1],
+    headers={"Accept": "application/json"},
+)
+try:
+    response = build_opener(ProxyHandler({})).open(request, timeout=5)
+except HTTPError as error:
+    response = error
+with response:
+    status = response.status
+    response.read()
+raise SystemExit(0 if status == int(sys.argv[2]) else 1)
+"""
 
 
 def require(condition: bool, message: str) -> None:
@@ -261,6 +284,20 @@ class Visitor:
         )
         require(len(list(self.cookies)) == 2, "Demo session cookies were not established.")
         return member
+
+    def verify_frontend_lifecycle_probe(self, path: str) -> None:
+        require(path in FRONTEND_LIFECYCLE_PROBES, "The frontend probe path is invalid.")
+        expected_status, expected_body = FRONTEND_LIFECYCLE_PROBES[path]
+        request = Request(ORIGIN + path, headers={"Accept": "text/plain"})
+        try:
+            response = self.opener.open(request, timeout=25)
+        except HTTPError as error:
+            response = error
+        with response:
+            require(
+                response.status == expected_status and response.read(32) == expected_body,
+                "A frontend lifecycle check failed.",
+            )
 
     def verify_rendered_seeds(self) -> None:
         recipes = self.request("/api/recipes")
@@ -507,6 +544,25 @@ def _populate(generation: sandbox.Generation, context: ssl.SSLContext) -> tuple[
     }
 
 
+def _verify_private_backend_status(
+    generation: sandbox.Generation, path: str, expected: int
+) -> None:
+    require(path in PRIVATE_BACKEND_PROBES, "The private backend probe path is invalid.")
+    name = f"{generation.prefix}-backend"
+    require(sandbox._owned_container(name, generation), "Owned backend is missing.")
+    sandbox.docker(
+        [
+            "exec",
+            name,
+            "python",
+            "-c",
+            BACKEND_STATUS_PROBE,
+            path,
+            str(expected),
+        ]
+    )
+
+
 def _deadline(generation: sandbox.Generation, visitor: Visitor) -> None:
     # No supervisor main loop/process is running: only the in-container guard owns expiry.
     while datetime.now(UTC) < generation.expires_at + timedelta(seconds=3):
@@ -530,8 +586,14 @@ def _deadline(generation: sandbox.Generation, visitor: Visitor) -> None:
         "Database survived its independent deadline.",
     )
     visitor.request("/api/recipes", expected=503)
-    visitor.request("/api/readiness", expected=503)
-    visitor.request("/api/health")
+    visitor.request("/api/readiness", expected=404)
+    visitor.request("/api/health", expected=404)
+    visitor.verify_frontend_lifecycle_probe("/readyz")
+    visitor.verify_frontend_lifecycle_probe("/healthz")
+    # The frontend deliberately hides backend-only health routes with a 404.
+    # Probe them inside the owned backend container without publishing another port.
+    _verify_private_backend_status(generation, "/api/readiness", 503)
+    _verify_private_backend_status(generation, "/api/health", 200)
 
 
 def _removed(generation: sandbox.Generation) -> None:
