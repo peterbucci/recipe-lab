@@ -40,6 +40,9 @@ FAIL_STOP_EXIT_CODE = 78
 MONITOR_INTERVAL_SECONDS = 10
 HEARTBEAT_INTERVAL_SECONDS = 10
 HEARTBEAT_TTL_SECONDS = 30
+CLEANUP_RETRY_ATTEMPTS = 40
+CLEANUP_RETRY_INTERVAL_SECONDS = 0.25
+CLEANUP_TIMEOUT_SECONDS = 10
 HEARTBEAT_CONTAINER_PATH = "/run/recipe-lab-supervisor/heartbeat"
 HEARTBEAT_PATH_ENV = "SANDBOX_SUPERVISOR_HEARTBEAT_PATH"
 HEARTBEAT_TTL_ENV = "SANDBOX_SUPERVISOR_HEARTBEAT_TTL_SECONDS"
@@ -62,6 +65,10 @@ DATABASE_DEADLINE_COMMAND = (
 
 
 class SandboxOperationError(RuntimeError):
+    pass
+
+
+class SandboxOwnershipError(SandboxOperationError):
     pass
 
 
@@ -163,15 +170,23 @@ def _mark_fail_stop(path: Path) -> None:
         return
 
 
-def docker(arguments: Sequence[str], *, environment: dict[str, str] | None = None) -> str:
-    result = subprocess.run(
-        ["docker", *arguments],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=None if environment is None else {**os.environ, **environment},
-        timeout=180,
-    )
+def docker(
+    arguments: Sequence[str],
+    *,
+    environment: dict[str, str] | None = None,
+    timeout: float = 180,
+) -> str:
+    try:
+        result = subprocess.run(
+            ["docker", *arguments],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=None if environment is None else {**os.environ, **environment},
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise SandboxOperationError("A sandbox container operation timed out.") from None
     if result.returncode:
         raise SandboxOperationError("A sandbox container operation failed.")
     return result.stdout.strip()
@@ -466,38 +481,130 @@ def reconcile_orphaned_generations() -> int:
     return len(generations)
 
 
-def _owned_container(name: str, generation: Generation) -> bool:
-    # Exact-name listing tolerates resources already removed by their deadline.
-    identifiers = docker(["container", "ls", "--all", "--quiet", "--filter", f"name=^/{name}$"])
-    if not identifiers:
-        return False
-    metadata = json.loads(docker(["container", "inspect", name]))
+def _exact_resource_identifier(kind: str, name: str, *, timeout: float = 180) -> str | None:
+    arguments = (
+        [kind, "ls", "--all", "--quiet", "--no-trunc", "--filter", f"name=^/{name}$"]
+        if kind == "container"
+        else [kind, "ls", "--quiet", "--no-trunc", "--filter", f"name=^{name}$"]
+    )
+    identifiers = docker(arguments, timeout=timeout).splitlines()
+    if len(identifiers) > 1:
+        raise SandboxOwnershipError("Sandbox resource ownership could not be verified.")
+    return identifiers[0] if identifiers else None
+
+
+def _validate_owned_container_identifier(
+    identifier: str, name: str, generation: Generation, *, timeout: float = 180
+) -> None:
+    try:
+        metadata = json.loads(docker(["container", "inspect", identifier], timeout=timeout))
+        record = metadata[0]
+        labels = record["Config"]["Labels"]
+    except (json.JSONDecodeError, IndexError, KeyError, TypeError):
+        raise SandboxOwnershipError("Sandbox resource ownership could not be verified.") from None
     if (
         len(metadata) != 1
-        or metadata[0]["Name"] != f"/{name}"
-        or metadata[0]["Config"]["Labels"].get(LABEL) != str(generation.identifier)
+        or record.get("Id") != identifier
+        or record.get("Name") != f"/{name}"
+        or not isinstance(labels, dict)
+        or labels.get(LABEL) != str(generation.identifier)
     ):
-        raise SandboxOperationError("Sandbox resource ownership could not be verified.")
-    return True
+        raise SandboxOwnershipError("Sandbox resource ownership could not be verified.")
+
+
+def _owned_container_identifier(name: str, generation: Generation) -> str | None:
+    # Exact-name listing tolerates resources already removed by their deadline.
+    identifier = _exact_resource_identifier("container", name)
+    if identifier is None:
+        return None
+    _validate_owned_container_identifier(identifier, name, generation)
+    return identifier
+
+
+def _owned_container(name: str, generation: Generation) -> bool:
+    return _owned_container_identifier(name, generation) is not None
+
+
+def _validate_owned_network_identifier(
+    identifier: str, name: str, generation: Generation, *, timeout: float = 180
+) -> None:
+    try:
+        metadata = json.loads(docker(["network", "inspect", identifier], timeout=timeout))
+        record = metadata[0]
+        labels = record["Labels"]
+    except (json.JSONDecodeError, IndexError, KeyError, TypeError):
+        raise SandboxOwnershipError("Sandbox network ownership could not be verified.") from None
+    if (
+        len(metadata) != 1
+        or record.get("Id") != identifier
+        or record.get("Name") != name
+        or not isinstance(labels, dict)
+        or labels.get(LABEL) != str(generation.identifier)
+    ):
+        raise SandboxOwnershipError("Sandbox network ownership could not be verified.")
+
+
+def _owned_network_identifier(name: str, generation: Generation) -> str | None:
+    identifier = _exact_resource_identifier("network", name)
+    if identifier is None:
+        return None
+    _validate_owned_network_identifier(identifier, name, generation)
+    return identifier
+
+
+def _remove_owned_resource(kind: str, name: str, generation: Generation) -> None:
+    expected_identifier: str | None = None
+    validator = (
+        _validate_owned_container_identifier
+        if kind == "container"
+        else _validate_owned_network_identifier
+    )
+    deadline = time.monotonic() + CLEANUP_TIMEOUT_SECONDS
+    for attempt in range(CLEANUP_RETRY_ATTEMPTS):
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            identifier = _exact_resource_identifier(kind, name, timeout=remaining)
+            if identifier is None:
+                return
+            if expected_identifier is not None and identifier != expected_identifier:
+                raise SandboxOwnershipError("Sandbox resource ownership could not be verified.")
+            expected_identifier = identifier
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            validator(identifier, name, generation, timeout=remaining)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            docker(
+                [kind, "rm", "--force", identifier]
+                if kind == "container"
+                else [kind, "rm", identifier],
+                timeout=remaining,
+            )
+        except SandboxOwnershipError:
+            raise
+        except SandboxOperationError:
+            # Docker may be concurrently completing --rm or releasing network links.
+            # The next pass proves absence or revalidates the same immutable resource.
+            pass
+        if attempt + 1 < CLEANUP_RETRY_ATTEMPTS:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(CLEANUP_RETRY_INTERVAL_SECONDS, remaining))
+    raise SandboxOperationError("Sandbox cleanup did not converge.")
 
 
 def destroy_generation(generation: Generation) -> None:
     # Remove the listener first, then writers, then the complete memory database.
     for role in ("frontend", "backend", "initialize", "db"):
         name = f"{generation.prefix}-{role}"
-        if _owned_container(name, generation):
-            docker(["container", "rm", "--force", name])
+        _remove_owned_resource("container", name, generation)
     for name in (f"{generation.prefix}-ingress", generation.prefix):
-        names = docker(["network", "ls", "--quiet", "--filter", f"name=^{name}$"])
-        if names:
-            metadata = json.loads(docker(["network", "inspect", name]))
-            if (
-                len(metadata) != 1
-                or metadata[0]["Name"] != name
-                or metadata[0]["Labels"].get(LABEL) != str(generation.identifier)
-            ):
-                raise SandboxOperationError("Sandbox network ownership could not be verified.")
-            docker(["network", "rm", name])
+        _remove_owned_resource("network", name, generation)
 
 
 def _container_arguments(generation: Generation, role: str) -> list[str]:
