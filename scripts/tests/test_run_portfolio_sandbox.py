@@ -25,14 +25,16 @@ class PortfolioSandboxTests(unittest.TestCase):
 
     def test_destruction_requires_exact_resource_owner(self) -> None:
         prefix = self.generation.prefix
+        identifier = "1" * 64
         metadata = [
             {
+                "Id": identifier,
                 "Name": f"/{prefix}-frontend",
                 "Config": {"Labels": {sandbox.LABEL: "another-generation"}},
             }
         ]
         with patch.object(
-            sandbox, "docker", side_effect=["container-id", json.dumps(metadata)]
+            sandbox, "docker", side_effect=[identifier, json.dumps(metadata)]
         ) as command:
             with self.assertRaises(sandbox.SandboxOperationError):
                 sandbox.destroy_generation(self.generation)
@@ -40,32 +42,228 @@ class PortfolioSandboxTests(unittest.TestCase):
 
     def test_destruction_closes_listener_before_writers_and_storage(self) -> None:
         removed: list[str] = []
+        names = [
+            f"{self.generation.prefix}-{role}"
+            for role in ("frontend", "backend", "initialize", "db")
+        ]
+        identifiers = {name: f"{index:064x}" for index, name in enumerate(names, start=1)}
+        names_by_identifier = {value: key for key, value in identifiers.items()}
+        active = set(identifiers.values())
 
         def command(arguments: list[str], **_kwargs: object) -> str:
             if arguments[:2] == ["container", "ls"]:
-                return "container-id"
+                self.assertIn("--all", arguments)
+                for name, identifier in identifiers.items():
+                    if arguments[-1] == f"name=^/{name}$":
+                        return identifier if identifier in active else ""
+                return ""
+            if arguments[:2] == ["container", "inspect"]:
+                identifier = arguments[2]
+                return json.dumps(
+                    [
+                        {
+                            "Id": identifier,
+                            "Name": f"/{names_by_identifier[identifier]}",
+                            "Config": {"Labels": {sandbox.LABEL: str(self.generation.identifier)}},
+                        }
+                    ]
+                )
+            if arguments[:2] == ["container", "rm"]:
+                identifier = arguments[-1]
+                removed.append(names_by_identifier[identifier])
+                active.remove(identifier)
+            return ""
+
+        with (
+            patch.object(sandbox, "docker", side_effect=command),
+            patch.object(sandbox.time, "sleep"),
+        ):
+            sandbox.destroy_generation(self.generation)
+        self.assertEqual(removed, names)
+
+    def test_cleanup_accepts_concurrent_auto_removal_and_removes_networks(self) -> None:
+        container_name = f"{self.generation.prefix}-frontend"
+        container_identifier = "1" * 64
+        network_names = [f"{self.generation.prefix}-ingress", self.generation.prefix]
+        network_identifiers = {
+            name: f"{index:064x}" for index, name in enumerate(network_names, start=10)
+        }
+        active_containers = {container_identifier}
+        active_networks = set(network_identifiers.values())
+        removed_networks: list[str] = []
+
+        def command(arguments: list[str], **_kwargs: object) -> str:
+            if arguments[:2] == ["container", "ls"]:
+                return (
+                    container_identifier
+                    if arguments[-1] == f"name=^/{container_name}$"
+                    and container_identifier in active_containers
+                    else ""
+                )
             if arguments[:2] == ["container", "inspect"]:
                 return json.dumps(
                     [
                         {
-                            "Name": f"/{arguments[2]}",
+                            "Id": container_identifier,
+                            "Name": f"/{container_name}",
+                            "Config": {"Labels": {sandbox.LABEL: str(self.generation.identifier)}},
+                        }
+                    ]
+                )
+            if arguments[:2] == ["container", "rm"]:
+                active_containers.remove(container_identifier)
+                raise sandbox.SandboxOperationError("removal is already in progress")
+            if arguments[:2] == ["network", "ls"]:
+                for name, identifier in network_identifiers.items():
+                    if arguments[-1] == f"name=^{name}$":
+                        return identifier if identifier in active_networks else ""
+                return ""
+            if arguments[:2] == ["network", "inspect"]:
+                identifier = arguments[2]
+                name = next(
+                    name for name, value in network_identifiers.items() if value == identifier
+                )
+                return json.dumps(
+                    [
+                        {
+                            "Id": identifier,
+                            "Name": name,
+                            "Labels": {sandbox.LABEL: str(self.generation.identifier)},
+                        }
+                    ]
+                )
+            if arguments[:2] == ["network", "rm"]:
+                identifier = arguments[2]
+                active_networks.remove(identifier)
+                removed_networks.append(identifier)
+                return ""
+            raise AssertionError(arguments)
+
+        with (
+            patch.object(sandbox, "docker", side_effect=command),
+            patch.object(sandbox.time, "sleep"),
+        ):
+            sandbox.destroy_generation(self.generation)
+        self.assertEqual(removed_networks, list(network_identifiers.values()))
+
+    def test_cleanup_refuses_changed_container_identity_during_retry(self) -> None:
+        name = f"{self.generation.prefix}-frontend"
+        first_identifier = "1" * 64
+        replacement_identifier = "2" * 64
+        listed_identifier = first_identifier
+        removed: list[str] = []
+
+        def command(arguments: list[str], **_kwargs: object) -> str:
+            nonlocal listed_identifier
+            if arguments[:2] == ["container", "ls"]:
+                return listed_identifier if arguments[-1] == f"name=^/{name}$" else ""
+            if arguments[:2] == ["container", "inspect"]:
+                return json.dumps(
+                    [
+                        {
+                            "Id": arguments[2],
+                            "Name": f"/{name}",
                             "Config": {"Labels": {sandbox.LABEL: str(self.generation.identifier)}},
                         }
                     ]
                 )
             if arguments[:2] == ["container", "rm"]:
                 removed.append(arguments[-1])
-            return ""
+                listed_identifier = replacement_identifier
+                raise sandbox.SandboxOperationError("transient removal failure")
+            raise AssertionError(arguments)
 
-        with patch.object(sandbox, "docker", side_effect=command):
+        with (
+            patch.object(sandbox, "docker", side_effect=command),
+            patch.object(sandbox.time, "sleep"),
+            self.assertRaises(sandbox.SandboxOwnershipError),
+        ):
             sandbox.destroy_generation(self.generation)
-        self.assertEqual(
-            removed,
-            [
-                f"{self.generation.prefix}-{role}"
-                for role in ("frontend", "backend", "initialize", "db")
-            ],
+        self.assertEqual(removed, [first_identifier])
+
+    def test_cleanup_handles_container_disappearing_during_inspect(self) -> None:
+        name = f"{self.generation.prefix}-frontend"
+        identifier = "1" * 64
+        active = True
+
+        def command(arguments: list[str], **_kwargs: object) -> str:
+            nonlocal active
+            if arguments[:2] == ["container", "ls"]:
+                return identifier if arguments[-1] == f"name=^/{name}$" and active else ""
+            if arguments[:2] == ["container", "inspect"]:
+                active = False
+                raise sandbox.SandboxOperationError("container disappeared")
+            if arguments[:2] == ["network", "ls"]:
+                return ""
+            raise AssertionError(arguments)
+
+        with (
+            patch.object(sandbox, "docker", side_effect=command) as run,
+            patch.object(sandbox.time, "sleep"),
+        ):
+            sandbox.destroy_generation(self.generation)
+        self.assertFalse(
+            any(call.args[0][:2] == ["container", "rm"] for call in run.call_args_list)
         )
+
+    def test_cleanup_pins_identity_before_an_inspect_race(self) -> None:
+        name = f"{self.generation.prefix}-frontend"
+        first_identifier = "1" * 64
+        replacement_identifier = "2" * 64
+        listed_identifier = first_identifier
+
+        def command(arguments: list[str], **_kwargs: object) -> str:
+            nonlocal listed_identifier
+            if arguments[:2] == ["container", "ls"]:
+                return listed_identifier if arguments[-1] == f"name=^/{name}$" else ""
+            if arguments[:2] == ["container", "inspect"]:
+                listed_identifier = replacement_identifier
+                raise sandbox.SandboxOperationError("container disappeared")
+            raise AssertionError(arguments)
+
+        with (
+            patch.object(sandbox, "docker", side_effect=command) as run,
+            patch.object(sandbox.time, "sleep"),
+            self.assertRaises(sandbox.SandboxOwnershipError),
+        ):
+            sandbox.destroy_generation(self.generation)
+        self.assertFalse(
+            any(call.args[0][:2] == ["container", "rm"] for call in run.call_args_list)
+        )
+
+    def test_cleanup_exhaustion_stops_before_network_removal(self) -> None:
+        name = f"{self.generation.prefix}-frontend"
+        identifier = "1" * 64
+        removed: list[str] = []
+
+        def command(arguments: list[str], **_kwargs: object) -> str:
+            if arguments[:2] == ["container", "ls"]:
+                return identifier if arguments[-1] == f"name=^/{name}$" else ""
+            if arguments[:2] == ["container", "inspect"]:
+                return json.dumps(
+                    [
+                        {
+                            "Id": identifier,
+                            "Name": f"/{name}",
+                            "Config": {"Labels": {sandbox.LABEL: str(self.generation.identifier)}},
+                        }
+                    ]
+                )
+            if arguments[:2] == ["container", "rm"]:
+                removed.append(arguments[-1])
+                raise sandbox.SandboxOperationError("transient removal failure")
+            raise AssertionError(arguments)
+
+        with (
+            patch.object(sandbox, "docker", side_effect=command) as run,
+            patch.object(sandbox, "CLEANUP_RETRY_ATTEMPTS", 3),
+            patch.object(sandbox.time, "sleep") as sleep,
+            self.assertRaises(sandbox.SandboxOperationError),
+        ):
+            sandbox.destroy_generation(self.generation)
+        self.assertEqual(removed, [identifier] * 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertFalse(any(call.args[0][:2] == ["network", "rm"] for call in run.call_args_list))
 
     def test_start_refuses_mutable_images_without_creating_resources(self) -> None:
         with patch.object(sandbox, "docker") as command:
@@ -246,33 +444,97 @@ class PortfolioSandboxTests(unittest.TestCase):
 
     def test_network_cleanup_checks_both_network_owners(self) -> None:
         removed: list[str] = []
+        names = [f"{self.generation.prefix}-ingress", self.generation.prefix]
+        identifiers = {name: f"{index:064x}" for index, name in enumerate(names, start=1)}
+        names_by_identifier = {value: key for key, value in identifiers.items()}
+        active = set(identifiers.values())
 
         def command(arguments: list[str], **_kwargs: object) -> str:
             if arguments[:2] == ["network", "ls"]:
-                return "network-id"
+                for name, identifier in identifiers.items():
+                    if arguments[-1] == f"name=^{name}$":
+                        return identifier if identifier in active else ""
+                return ""
             if arguments[:2] == ["network", "inspect"]:
+                identifier = arguments[2]
                 return json.dumps(
                     [
                         {
-                            "Name": arguments[2],
+                            "Id": identifier,
+                            "Name": names_by_identifier[identifier],
                             "Labels": {sandbox.LABEL: str(self.generation.identifier)},
                         }
                     ]
                 )
             if arguments[:2] == ["network", "rm"]:
-                removed.append(arguments[2])
+                identifier = arguments[2]
+                removed.append(names_by_identifier[identifier])
+                active.remove(identifier)
             return ""
 
-        with patch.object(sandbox, "docker", side_effect=command):
+        with (
+            patch.object(sandbox, "docker", side_effect=command),
+            patch.object(sandbox.time, "sleep"),
+        ):
             sandbox.destroy_generation(self.generation)
-        self.assertEqual(removed, [f"{self.generation.prefix}-ingress", self.generation.prefix])
+        self.assertEqual(removed, names)
+
+    def test_network_cleanup_retries_a_transient_removal_failure(self) -> None:
+        ingress = f"{self.generation.prefix}-ingress"
+        identifier = "1" * 64
+        active = True
+        removal_attempts = 0
+
+        def command(arguments: list[str], **_kwargs: object) -> str:
+            nonlocal active, removal_attempts
+            if arguments[:2] == ["container", "ls"]:
+                return ""
+            if arguments[:2] == ["network", "ls"]:
+                return identifier if arguments[-1] == f"name=^{ingress}$" and active else ""
+            if arguments[:2] == ["network", "inspect"]:
+                return json.dumps(
+                    [
+                        {
+                            "Id": identifier,
+                            "Name": ingress,
+                            "Labels": {sandbox.LABEL: str(self.generation.identifier)},
+                        }
+                    ]
+                )
+            if arguments[:2] == ["network", "rm"]:
+                removal_attempts += 1
+                if removal_attempts == 1:
+                    raise sandbox.SandboxOperationError("transient endpoint bookkeeping")
+                active = False
+                return ""
+            raise AssertionError(arguments)
+
+        with (
+            patch.object(sandbox, "docker", side_effect=command),
+            patch.object(sandbox.time, "sleep"),
+        ):
+            sandbox.destroy_generation(self.generation)
+        self.assertEqual(removal_attempts, 2)
 
     def test_network_cleanup_refuses_another_owner(self) -> None:
+        identifier = "1" * 64
+        ingress = f"{self.generation.prefix}-ingress"
+
         def command(arguments: list[str], **_kwargs: object) -> str:
+            if arguments[:2] == ["container", "ls"]:
+                return ""
             if arguments[:2] == ["network", "ls"]:
-                return "network-id"
+                return identifier
             if arguments[:2] == ["network", "inspect"]:
-                return json.dumps([{"Name": arguments[2], "Labels": {sandbox.LABEL: "other"}}])
+                return json.dumps(
+                    [
+                        {
+                            "Id": identifier,
+                            "Name": ingress,
+                            "Labels": {sandbox.LABEL: "other"},
+                        }
+                    ]
+                )
             return ""
 
         with patch.object(sandbox, "docker", side_effect=command) as run:
