@@ -27,7 +27,7 @@ TOOL_VERSION = "1.2.0"
 SCANNER_NAME = "recipe-lab-source-secret-scan"
 SCANNER_VERSION = "2"
 MANIFEST_SCHEMA_VERSION = 1
-POLICY_VERSION = 7
+POLICY_VERSION = 8
 FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 MAX_REPORTED_FINDINGS = 20
 
@@ -67,6 +67,7 @@ EXPORT_POLICY = PackagingPolicy(
             ".env.example",
             ".gitattributes",
             ".gitignore",
+            "CONTRIBUTING.md",
             "README.md",
             "compose.yaml",
             "pyproject.toml",

@@ -87,7 +87,7 @@ class SourcePackageTestCase(unittest.TestCase):
 
 
 class SuccessfulPackageTests(SourcePackageTestCase):
-    def test_includes_only_the_reviewed_root_dependency_contract_files(self) -> None:
+    def test_includes_the_reviewed_root_files(self) -> None:
         self._write(
             ".gitattributes",
             "*.sh text eol=lf\n",
@@ -96,6 +96,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             ".dockerignore",
             ".env*\n.git\n.venv\n",
         )
+        self._write("CONTRIBUTING.md", "# Contributing\n")
         self._write(
             "pyproject.toml",
             '[tool.uv]\nrequired-version = "==0.12.6"\n',
@@ -115,6 +116,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
                 ".dockerignore",
                 ".gitattributes",
                 ".gitignore",
+                "CONTRIBUTING.md",
                 "README.md",
                 "backend/app.py",
                 "pyproject.toml",
@@ -130,6 +132,10 @@ class SuccessfulPackageTests(SourcePackageTestCase):
             self.assertEqual(
                 archive.read(f"{archive_root}/.gitattributes"),
                 b"*.sh text eol=lf\n",
+            )
+            self.assertEqual(
+                archive.read(f"{archive_root}/CONTRIBUTING.md"),
+                b"# Contributing\n",
             )
             self.assertEqual(
                 archive.read(f"{archive_root}/pyproject.toml"),
@@ -156,7 +162,7 @@ class SuccessfulPackageTests(SourcePackageTestCase):
         self.assertEqual(scanner["result"], "passed")
         self.assertRegex(scanner["sha256"], r"^[0-9a-f]{64}$")
         policy_report = cast(dict[str, Any], report["policy"])
-        self.assertEqual(policy_report["version"], 7)
+        self.assertEqual(policy_report["version"], 8)
         self.assertRegex(policy_report["sha256"], r"^[0-9a-f]{64}$")
         archive_report = cast(dict[str, Any], report["archive"])
         self.assertEqual(archive_report["sha256"], hashlib.sha256(output.read_bytes()).hexdigest())
