@@ -347,7 +347,7 @@ jobs:
 
       - name: Upload public baseline aggregate
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rcp34b-public-baseline-aggregate
           path: frontend/test-results/baseline/results.json
@@ -356,7 +356,7 @@ jobs:
 
       - name: Upload sanitized visual differences
         if: ${{ failure() && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rcp34b-sanitized-visual-differences
           path: |
@@ -945,7 +945,7 @@ jobs:
 
       - name: Upload reproducibility report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: offline-evaluation-report
           path: |
@@ -1111,7 +1111,7 @@ jobs:
 
       - name: Upload acceptance diagnostics
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mvp-acceptance-diagnostics
           path: |
@@ -1440,7 +1440,7 @@ jobs:
 
       - name: Upload privacy-safe community release summaries
         if: ${{ success() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rcp32-community-release-gate-summaries
           path: |
